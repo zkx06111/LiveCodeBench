@@ -22,7 +22,7 @@ def eval_stdin_stdout(code: str, inputs: list[str], outputs: list[str], filename
     build_result = run(["g++", full_fn, "-o", exec_fn, "-std=c++17"])
     
     if build_result.exit_code != 0:
-        return True, [{
+        return False, [{
             "status": "Compilation Error",
             "exit_code": build_result.exit_code,
             "stdout": build_result.stdout,
