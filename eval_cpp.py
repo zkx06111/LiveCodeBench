@@ -1,6 +1,9 @@
 from pathlib import Path
 from safe_run import run
 import os
+import random
+import time
+import hashlib
 
 def compare_outputs(output1: str, output2: str) -> bool:
     # Normalize both outputs by stripping whitespace at line ends and removing trailing line breaks
@@ -9,10 +12,16 @@ def compare_outputs(output1: str, output2: str) -> bool:
     
     return normalized_output1 == normalized_output2
 
-def eval_stdin_stdout(code: str, inputs: list[str], outputs: list[str], filename: str, base_dir="./tmp"):
+def eval_stdin_stdout(code: str, inputs: list[str], outputs: list[str], base_dir="./tmp"):
     assert len(inputs) == len(outputs), "Inputs and Outputs must have the same number of cases"
     
     os.makedirs(base_dir, exist_ok=True)
+    # use a random seed from the current time
+    random.seed(time.time())
+    # generate a hash of the code to use as a filename
+    filename = hashlib.md5(code.encode()).hexdigest()
+    # generate a random filename using ascii letters and digits
+    filename += "_" + "".join(random.choices("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789", k=10))
     full_fn = f"{base_dir}/{filename}.cpp"
     exec_fn = f"{base_dir}/{filename}.o"
     
@@ -21,7 +30,14 @@ def eval_stdin_stdout(code: str, inputs: list[str], outputs: list[str], filename
     
     build_result = run(["g++", full_fn, "-o", exec_fn, "-std=c++17"])
     
+    def cleanup():
+        if os.path.exists(full_fn):
+            os.remove(full_fn)
+        if os.path.exists(exec_fn):
+            os.remove(exec_fn)
+    
     if build_result.exit_code != 0:
+        cleanup()
         return False, [{
             "status": "Compilation Error",
             "exit_code": build_result.exit_code,
@@ -34,6 +50,7 @@ def eval_stdin_stdout(code: str, inputs: list[str], outputs: list[str], filename
     for input_, output_ in zip(inputs, outputs):
         run_result = run([exec_fn], input_str=input_)
         if run_result.exit_code:
+            cleanup()
             test_results.append({
                 "status": "Runtime Error",
                 "exit_code": run_result.exit_code,
@@ -52,6 +69,7 @@ def eval_stdin_stdout(code: str, inputs: list[str], outputs: list[str], filename
                 "stderr": run_result.stderr,
             })
         else:
+            cleanup()
             test_results.append({
                 "status": "Wrong Answer",
                 "exit_code": run_result.exit_code,
@@ -61,6 +79,7 @@ def eval_stdin_stdout(code: str, inputs: list[str], outputs: list[str], filename
             })
             return False, test_results
     
+    cleanup()
     return True, test_results
         
         
